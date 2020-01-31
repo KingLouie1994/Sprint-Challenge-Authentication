@@ -1,60 +1,64 @@
 const router = require("express").Router();
 const bcrypt = require("bcryptjs");
-const Users = require("./users-model");
 const jwt = require("jsonwebtoken");
-// require("dotenv").config();
+
+const Users = require("./users-model");
+
+function makeToken(user) {
+  const payload = {
+    sub: user.id,
+    username: user.username
+  };
+  const options = {
+    expiresIn: "1d"
+  };
+  const token = jwt.sign(
+    payload,
+    process.env.JWT_SECRET || "thesecret",
+    options
+  );
+  return token;
+}
 
 router.post("/register", (req, res) => {
-  const { username, password } = req.body;
-  const hash = bcrypt.hashSync(password, 11);
-  const newUser = {
-    username,
-    password: hash
-  };
+  let user = req.body;
+  const hash = bcrypt.hashSync(user.password, 10);
+  user.password = hash;
 
-  Users.add(newUser)
+  Users.add(user)
     .then(saved => {
       res.status(201).json(saved);
     })
     .catch(error => {
       res.status(500).json({
-        message: "There was an error adding the user: " + error.message
+        message: "There was an error registrating this new user"
       });
     });
 });
 
 router.post("/login", (req, res) => {
   let { username, password } = req.body;
-  Users.findBy({ username })
+
+  Users.findby({ username })
     .first()
     .then(user => {
       if (user && bcrypt.compareSync(password, user.password)) {
-        const token = generateToken(user);
+        const Token = makeToken(user);
         res.status(200).json({
-          message: `Welcome ${user.username}!`,
-          token: token
+          message: `Hello ${user.username}`,
+          Token
         });
       } else {
-        res.status(401).json({ message: "Invalid Credentials" });
+        res.status(401).json({
+          message: "Wrong credentials"
+        });
       }
     })
     .catch(error => {
-      res.status(500).json(error.message);
+      res.status(500).json({
+        message: "There was an error logging in"
+      });
     });
 });
-
-function generateToken(user) {
-  const payload = {
-    subject: user.id,
-    username: user.username
-  };
-  const options = {
-    expiresIn: "1d"
-  };
-
-  const result = jwt.sign(payload, process.env.SECRET_KEY, options);
-
-  return result;
-}
 
 module.exports = router;
